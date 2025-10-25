@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title id="page-title">LifeFeed | Стрічка Життя</title>
+    <style>
+        /* CSS: Мінімалізм та контраст (залишається незмінним) */
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            background-color: #1a1a1a; /* Темний фон */
+            color: #f0f0f0; /* Світлий текст */
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px;
+            margin: 0;
+            min-height: 100vh;
+        }
+
+        h1 {
+            color: #00ff99; /* Яскравий акцентний колір (Неон) */
+            font-size: 3em;
+            margin-bottom: 5px;
+            text-shadow: 0 0 10px rgba(0, 255, 153, 0.5);
+        }
+        
+        #streak-display {
+            font-size: 1.2em;
+            margin-bottom: 30px;
+            color: #aaa;
+        }
+
+        #quest-container {
+            width: 100%;
+            max-width: 600px;
+            background-color: #2a2a2a;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+        }
+
+        .quest-card {
+            background-color: #333;
+            margin-bottom: 15px;
+            padding: 15px;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: background-color 0.2s, transform 0.2s;
+            border-left: 5px solid; /* Кольорова смуга рідкісності */
+            position: relative;
+        }
+
+        .quest-card:hover {
+            background-color: #444;
+            transform: translateY(-2px);
+        }
+        
+        .completed {
+            background-color: #113322 !important;
+            opacity: 0.6;
+            text-decoration: line-through;
+            pointer-events: none; /* Вимкнути клік після завершення */
+        }
+        
+        /* Стилі для різних рідкісностей */
+        .Rarity-Ordinary { border-left-color: #cccccc; }
+        .Rarity-Uncommon { border-left-color: #00ff00; }
+        .Rarity-Rare { border-left-color: #0000ff; }
+        .Rarity-Epic { border-left-color: #aa00ff; }
+        .Rarity-Legendary { border-left-color: #ffcc00; }
+        .Rarity-Mythic { border-left-color: #ff0000; }
+        .Rarity-Titan { border-left-color: #ffffff; }
+
+        .rarity-tag {
+            font-size: 0.7em;
+            font-weight: bold;
+            opacity: 0.8;
+            margin-top: 5px;
+            display: block;
+        }
+
+        #reset-button {
+            margin-top: 30px;
+            padding: 10px 20px;
+            font-size: 1em;
+            background-color: #ff0099;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+
+        #reset-button:hover {
+            background-color: #cc007a;
+        }
+    </style>
+</head>
+<body>
+
+    <h1 id="main-title">LifeFeed ✨</h1>
+    <p id="streak-display">Дні поспіль: 0</p>
+
+    <div id="quest-container">
+        <p id="loading-message">Завантаження вашої щоденної Стрічки Життя...</p>
+    </div>
+
+    <button id="reset-button"></button>
+
+    <script>
+        const USER_LANG = navigator.language.startsWith('uk') ? 'uk' : 'en';
+
+        // --- 1. ПЕРЕКЛАДИ (LOCALIZATION) ---
+        const MESSAGES = {
+            uk: {
+                title: "LifeFeed | Стрічка Життя",
+                streak: "Дні поспіль",
+                loading: "Завантаження вашої щоденної Стрічки Життя...",
+                rarity: "Рідкість",
+                completed: (text) => `✅ Квест "${text}" виконано! Молодець!`,
+                alreadyLoaded: "✨ Твоя Стрічка Життя на сьогодні вже завантажена! Повертайся завтра!",
+                streakBroken: (count) => `😔 Ти пропустив день! Серія 'Дні поспіль' (Streak) скидається з ${count} до 0.`,
+                resetButton: "Скинути таймер (Для тесту)",
+                rarityNames: {
+                    Ordinary: "Звичайний", Uncommon: "Незвичайний", Rare: "Рідкісний", 
+                    Epic: "Епічний", Legendary: "Легендарний", Mythic: "Міфічний", Titan: "Тітан"
+                }
+            },
+            en: {
+                title: "LifeFeed | Daily Life Generator",
+                streak: "Days Streak",
+                loading: "Loading your daily LifeFeed...",
+                rarity: "Rarity",
+                completed: (text) => `✅ Quest "${text}" completed! Well done!`,
+                alreadyLoaded: "✨ Your LifeFeed for today is already loaded! Come back tomorrow!",
+                streakBroken: (count) => `😔 You missed a day! Your streak has been reset from ${count} to 0.`,
+                resetButton: "Reset Timer (For Testing)",
+                rarityNames: {
+                    Ordinary: "Ordinary", Uncommon: "Uncommon", Rare: "Rare", 
+                    Epic: "Epic", Legendary: "Legendary", Mythic: "Mythic", Titan: "Titan"
+                }
+            }
+        };
+
+        const LANG_MESSAGES = MESSAGES[USER_LANG];
+
+        // --- 2. СПИСКИ КВЕСТІВ (База даних) ---
+        
+        const QUESTS_DB = {
+            uk: {
+                Ordinary: ["Надішли голосове повідомлення другу, щоб розсмішити його.", "Випий склянку води перед кавою.", "Прибери один випадковий куток у кімнаті.", "Зроби 10 присідань або віджимань.", "Напиши три речі, за які ти вдячний сьогодні."],
+                Uncommon: ["Спробуй нову функцію в застосунку, яким часто користуєшся.", "Зроби 5-хвилинну розтяжку.", "Дізнайся один випадковий факт з Вікіпедії.", "Відклади телефон на 30 хвилин і займися чимось офлайн."],
+                Rare: ["Навчися казати 'Привіт' новою мовою.", "Приготуй собі невеликий, але особливий десерт.", "Сфотографуй щось красиве навколо себе і постав на фон."],
+                Epic: ["Запитай пораду в когось, кого поважаєш.", "Почни короткий онлайн-курс/урок (до 10 хв) на нову тему."],
+                Legendary: ["Зроби щось креативне у Scratch!", "Вийди на вулицю і глибоко дихай 5 хвилин, закривши очі."],
+                Mythic: ["Заплануй невелику поїздку або похід на вихідні.", "Напиши ідею для стартапу (навіть божевільну) на папері."],
+                Titan: ["Зроби велику добру справу для незнайомця.", "Напиши 5 кроків для досягнення найбільшої мрії."]
+            },
+            en: {
+                Ordinary: ["Send a voice message to a friend to make them laugh.", "Drink a glass of water before coffee.", "Tidy up one random corner of your room.", "Do 10 squats or push-ups.", "Write down three things you are grateful for today."],
+                Uncommon: ["Try a new feature in an app you use often.", "Do a 5-minute stretch routine.", "Learn one random fact from Wikipedia.", "Put your phone away for 30 minutes and do something offline."],
+                Rare: ["Learn to say 'Hello' in a new language.", "Prepare yourself a small but special dessert.", "Take a photo of something beautiful around you and set it as your wallpaper."],
+                Epic: ["Ask someone you respect for advice.", "Start a short online course/lesson (up to 10 min) on a new topic."],
+                Legendary: ["Create something creative in Scratch!", "Go outside and breathe deeply for 5 minutes with your eyes closed."],
+                Mythic: ["Plan a small trip or hike for the weekend.", "Write down a startup idea (even a crazy one) on paper."],
+                Titan: ["Do a great act of kindness for a stranger.", "Write down 5 steps to achieve your biggest dream."]
+            }
+        };
+
+        const CURRENT_QUESTS = QUESTS_DB[USER_LANG];
+
+        // --- 3. Ініціалізація DOM елементів ---
+        const QUEST_CONTAINER = document.getElementById('quest-container');
+        const STREAK_DISPLAY = document.getElementById('streak-display');
+        const RESET_BUTTON = document.getElementById('reset-button');
+        document.getElementById('page-title').textContent = LANG_MESSAGES.title;
+        RESET_BUTTON.textContent = LANG_MESSAGES.resetButton;
+
+        // --- 4. ЛОГІКА RNG (Рандомайзера) ---
+
+        function getRarityBasedOnRNG() {
+            const rng = Math.floor(Math.random() * 1000) + 1; // 1 до 1000
+
+            if (rng === 1000) return { name: 'Titan', color: '#ffffff' }; 
+            if (rng >= 992) return { name: 'Mythic', color: '#ff0000' }; 
+            if (rng >= 952) return { name: 'Legendary', color: '#ffcc00' }; 
+            if (rng >= 852) return { name: 'Epic', color: '#aa00ff' }; 
+            if (rng >= 702) return { name: 'Rare', color: '#0000ff' }; 
+            if (rng >= 402) return { name: 'Uncommon', color: '#00ff00' }; 
+            return { name: 'Ordinary', color: '#cccccc' }; 
+        }
+        
+        // --- 5. ГЕНЕРАЦІЯ ТА ВІДОБРАЖЕННЯ КВЕСТІВ ---
+
+        function generateQuestFeed() {
+            QUEST_CONTAINER.innerHTML = '';
+            
+            for (let i = 0; i < 3; i++) {
+                const rarity = getRarityBasedOnRNG();
+                const possibleQuests = CURRENT_QUESTS[rarity.name];
+                
+                const questText = possibleQuests[Math.floor(Math.random() * possibleQuests.length)];
+                const localizedRarity = LANG_MESSAGES.rarityNames[rarity.name];
+
+                const card = document.createElement('div');
+                card.className = `quest-card Rarity-${rarity.name}`;
+                card.innerHTML = `
+                    <strong>${questText}</strong>
+                    <span class="rarity-tag">${LANG_MESSAGES.rarity}: ${localizedRarity}</span>
+                `;
+                
+                card.onclick = function() {
+                    card.classList.add('completed');
+                    alert(LANG_MESSAGES.completed(questText));
+                };
+
+                QUEST_CONTAINER.appendChild(card);
+            }
+        }
+
+        // --- 6. ЛОГІКА 'ДНІВ ПОСПІЛЬ' (STREAK) та ТАЙМЕРА ---
+        
+        const localStorageKey = 'lifeFeed_last_visit';
+        const streakKey = 'lifeFeed_streak';
+
+        function checkDailyAccess() {
+            const lastVisit = localStorage.getItem(localStorageKey);
+            const today = new Date().toDateString();
+            let currentStreak = parseInt(localStorage.getItem(streakKey)) || 0;
+            
+            if (lastVisit === today) {
+                QUEST_CONTAINER.innerHTML = `<p id="loading-message" style="text-align: center; font-size: 1.2em; color: #ff0099;">${LANG_MESSAGES.alreadyLoaded}</p>`;
+            } else {
+                const yesterday = new Date();
+                yesterday.setDate(yesterday.getDate() - 1);
+                
+                if (lastVisit === yesterday.toDateString()) {
+                    currentStreak++;
+                } else if (lastVisit !== null) {
+                    alert(LANG_MESSAGES.streakBroken(currentStreak));
+                    currentStreak = 1;
+                } else {
+                    currentStreak = 1;
+                }
+                
+                localStorage.setItem(localStorageKey, today);
+                localStorage.setItem(streakKey, currentStreak);
+                generateQuestFeed();
+            }
+            
+            STREAK_DISPLAY.textContent = `${LANG_MESSAGES.streak}: ${currentStreak}`;
+        }
+        
+        // --- 7. Запуск ---
+        checkDailyAccess();
+        
+        RESET_BUTTON.onclick = function() {
+            localStorage.removeItem(localStorageKey);
+            localStorage.setItem(streakKey, 0);
+            window.location.reload();
+        };
+
+    </script>
+</body>
+</html>
